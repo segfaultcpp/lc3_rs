@@ -1,5 +1,5 @@
 use std::{*, env, fs, io::{*, prelude}};
-use termios;
+use termios::{*};
 
 struct Registers {
     regs: [u16; 8],
