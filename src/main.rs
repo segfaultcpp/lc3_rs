@@ -1,7 +1,7 @@
 use std::{*, env, fs, io::{*, prelude}};
 use libc;
 
-#[link(name = "cpp/terminal_setup")]
+#[link(name = "cpp/terminal_setup", kind = "static")]
 extern {
     fn check_key() -> u16;
     fn setup_term() -> libc::c_void;
