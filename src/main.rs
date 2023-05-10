@@ -148,7 +148,7 @@ impl VM {
 
     fn run(&mut self) {
         loop {
-            let instr = self.read_from_mem_rel(0);
+            let instr = self.read_from_mem(self.regs.pc);
             self.inc_pc();
             let op = instr >> 12;
             match op {
@@ -157,51 +157,57 @@ impl VM {
                     let offset = sign_extend(instr & 0x1FF, 9);
 
                     if (cond_flags & self.regs.cond) > 0 {
-                        self.regs.pc += offset;
+                        let val = self.regs.pc as u32 + offset as u32;
+                        self.regs.pc = val as u16;
                     }
                 },
                 OP_ADD => {
                     let dr = (instr >> 9) & 7;
                     let sr1 = (instr >> 6) & 7;
-                    let imm_flag = (instr >> 5) & 1 > 0;
+                    let imm_flag = test_bit(instr, bit(5));
 
                     if imm_flag {
                         let imm5 = sign_extend(instr & 0x1F, 5);
-                        self.regs[dr.into()] = self.regs[sr1.into()] + imm5;
+                        let val = self.regs[sr1.into()] as u32 + imm5 as u32;
+                        self.regs[dr.into()] = val as u16;
                     }
                     else {
                         let sr2 = instr & 7;
-                        self.regs[dr.into()] = self.regs[sr1.into()] + self.regs[sr2.into()];
+                        let val = self.regs[sr1.into()] as u32 + self.regs[sr2.into()] as u32;
+                        self.regs[dr.into()] = val as u16;
                     }
                     self.regs.update_cond_reg(dr.into());
                 },
                 OP_LD => {
                     let offset = sign_extend(instr & 0x1FF, 9);
                     let dr = (instr >> 9) & 7;
-                    self.regs[dr.into()] = self.read_from_mem_rel(offset);
+                    let addr = self.regs.pc as u32 + offset as u32;
+                    self.regs[dr.into()] = self.read_from_mem(addr as u16);
                     self.regs.update_cond_reg(dr.into());
                 },
                 OP_ST => {
                     let offset = sign_extend(instr & 0x1FF, 9);
                     let sr = (instr >> 9) & 7;
-                    self.write_to_mem_rel(offset, self.regs[sr.into()]);
+                    let addr = self.regs.pc as u32 + offset as u32;
+                    self.write_to_mem(addr as u16, self.regs[sr.into()]);
                 },
                 OP_JSR => {
                     self.regs[7] = self.regs.pc;
 
-                    if (instr >> 11) & 1 == 0 { // TODO: 
+                    if !test_bit(instr, bit(11)) {
                         let base_reg = (instr >> 6) & 7;
                         self.regs.pc = self.regs[base_reg.into()];
                     }
                     else {
-                        let offset = sign_extend(instr & 0x7FF, 11); // TODO: 
-                        self.regs.pc += offset;
+                        let offset = sign_extend(instr & 0x7FF, 11); 
+                        let val = self.regs.pc as u32 + offset as u32;
+                        self.regs.pc = val as u16;
                     }
                 },
                 OP_AND => {
                     let dr = (instr >> 9) & 7;
                     let sr1 = (instr >> 6) & 7;
-                    let imm_flag = (instr >> 5) & 1 > 0; // TODO: 
+                    let imm_flag = test_bit(instr, bit(5));
 
                     if imm_flag {
                         let imm5 = sign_extend(instr & 0x1F, 5);
@@ -218,14 +224,16 @@ impl VM {
                     let base_reg = (instr >> 6) & 7;
                     let dr = (instr >> 9) & 7;
 
-                    self.regs[dr.into()] = self.read_from_mem(self.regs[base_reg.into()] + offset);
+                    let addr = self.regs[base_reg.into()] as u32 + offset as u32;
+                    self.regs[dr.into()] = self.read_from_mem(addr as u16);
                     self.regs.update_cond_reg(dr.into());
                 },
                 OP_STR => {
                     let offset = sign_extend(instr & 0x3F, 6);
                     let base_reg = (instr >> 6) & 7;
                     let sr = (instr >> 9) & 7;
-                    self.write_to_mem(self.regs[base_reg.into()] + offset, self.regs[sr.into()]);
+                    let addr = self.regs[base_reg.into()] as u32 + offset as u32;
+                    self.write_to_mem(addr as u16, self.regs[sr.into()]);
                 },
                 OP_NOT => {
                     let dr = (instr >> 9) & 7;
@@ -237,14 +245,16 @@ impl VM {
                 OP_LDI => {
                     let dr = (instr >> 9) & 7;
                     let offset = sign_extend(instr & 0x1FF, 9);
-                    let addr = self.read_from_mem_rel(offset);
+                    let addr = self.regs.pc as u32 + offset as u32;
+                    let addr = self.read_from_mem(addr as u16);
                     self.regs[dr.into()] = self.read_from_mem(addr);
                     self.regs.update_cond_reg(dr.into());
                 },
                 OP_STI => {
                     let offset = sign_extend(instr & 0x1FF, 9);
                     let sr = (instr >> 9) & 7;
-                    let addr = self.read_from_mem_rel(offset);
+                    let addr = self.regs.pc as u32 + offset as u32;
+                    let addr = self.read_from_mem(addr as u16);
                     self.write_to_mem(addr, self.regs[sr.into()]);
                 },
                 OP_JMP => {
@@ -255,7 +265,8 @@ impl VM {
                     let offset = sign_extend(instr & 0x1FF, 9);
                     let dr = (instr >> 9) & 7;
 
-                    self.regs[dr.into()] = self.regs.pc + offset;
+                    let val = self.regs.pc as u32 + offset as u32;
+                    self.regs[dr.into()] = val as u16;
                     self.regs.update_cond_reg(dr.into());
                 },
                 OP_TRAP => {
@@ -331,10 +342,6 @@ impl VM {
         self.regs.pc += 1;
     }
 
-    fn read_from_mem_rel(&mut self, offset: u16) -> u16 {
-        self.read_from_mem(self.regs.pc + offset)
-    }
-
     fn read_from_mem(&mut self, offset: u16) -> u16 {
         if offset == MR_KBSR {
             if Terminal::check_key() != 0 {
@@ -352,32 +359,21 @@ impl VM {
         self.memory[offset as usize]
     }
 
-    fn write_to_mem_rel(&mut self, offset: u16, value: u16) {
-        self.write_to_mem(self.regs.pc + offset, value);
-    }
-
     fn write_to_mem(&mut self, offset: u16, value: u16) {
         self.memory[offset as usize] = value;
     }
 }
 
-fn load_program_from_file(path: &str) -> Vec<u16> {
-    let bytes = std::fs::read(path).expect("Couldn't open file!");
-    let mut ret = vec![];
-
-    for byte_pair in bytes.chunks_exact(2) {
-        ret.push(u16::from_le_bytes([byte_pair[1], byte_pair[0]]));
-    }
-    ret
+fn program_form_u8(bin: Vec<u8>) -> Vec<u16> {
+    bin
+        .chunks_exact(2)
+        .map(|pair| u16::from_be_bytes([pair[0], pair[1]]))
+        .collect::<Vec<_>>()
 }
 
-fn program_form_u8(bin: Vec<u8>) -> Vec<u16> {
-    let mut ret = vec![];
-
-    for byte_pair in bin.chunks_exact(2) {
-        ret.push(u16::from_le_bytes([byte_pair[1], byte_pair[0]]));
-    }
-    ret
+fn load_program_from_file(path: &str) -> Vec<u16> {
+    let bytes = std::fs::read(path).expect("Couldn't open file!");
+    program_form_u8(bytes)
 }
 
 fn main() {
@@ -387,8 +383,7 @@ fn main() {
     assert!(args.len() >= 2, "Expected file path to program");
 
     let program = load_program_from_file(args[1].as_str());
-    // let program = program_form_u8(vec![48, 0, 224, 2, 240, 34, 240, 37, 0, 72, 0, 101, 0, 108, 0, 108, 0, 111, 0, 32, 0, 87, 0, 111, 0, 114, 0, 108, 0, 100, 0, 33, 0, 0]);
-
+ 
     let mut vm = VM::new();
     vm.load_program(program);
     vm.run();
