@@ -1,5 +1,28 @@
 use std::{*, env, fs, io::{*, prelude}};
-use termios::{*};
+use libc;
+
+#[link(name = "cpp/terminal_setup", kind = "static")]
+extern {
+    fn check_key() -> u16;
+    fn setup_term() -> libc::c_void;
+    fn shutdown_term() -> libc::c_void;
+}
+
+struct Terminal;
+
+impl Terminal {
+    fn setup() {
+        unsafe { setup_term(); }
+    }
+
+    fn shutdown() {
+        unsafe { shutdown_term(); }
+    }
+
+    fn check_key() -> u16 {
+        unsafe { check_key() }
+    }
+}
 
 struct Registers {
     regs: [u16; 8],
@@ -314,9 +337,10 @@ impl VM {
 
     fn read_from_mem(&mut self, offset: u16) -> u16 {
         if offset == MR_KBSR {
-            let mut buffer = [0; 1];
-            std::io::stdin().read_exact(&mut buffer).unwrap();
-            if buffer[0] != 0 {
+            if Terminal::check_key() != 0 {
+                let mut buffer = [0; 1];
+                std::io::stdin().read_exact(&mut buffer).unwrap();
+                
                 self.memory[MR_KBSR as usize] = 1 << 15;
                 self.memory[MR_KBDR as usize] = buffer[0] as u16;
             } 
@@ -357,14 +381,7 @@ fn program_form_u8(bin: Vec<u8>) -> Vec<u16> {
 }
 
 fn main() {
-    let stdin = 0;
-    let termios = termios::Termios::from_fd(stdin).unwrap();
-
-    let mut new_termios = termios.clone();
-    new_termios.c_iflag &= IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL | IXON;
-    new_termios.c_lflag &= !(ICANON | ECHO);
-
-    tcsetattr(stdin, TCSANOW, &mut new_termios).unwrap();
+    Terminal::setup();
 
     let args = env::args().collect::<Vec<_>>();
     assert!(args.len() >= 2, "Expected file path to program");
@@ -376,5 +393,5 @@ fn main() {
     vm.load_program(program);
     vm.run();
 
-    tcsetattr(stdin, TCSANOW, &termios).unwrap();
+    Terminal::shutdown();
 }
