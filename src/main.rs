@@ -135,6 +135,11 @@ impl VM {
         }
     }
 
+    fn with_program(mut self, program: Vec<u16>) -> VM {
+        self.load_program(program);
+        self
+    }
+
     fn load_program(&mut self, program: Vec<u16>) {
         let base_addr = program.first().unwrap();
         let begin = *base_addr as usize;
@@ -144,6 +149,7 @@ impl VM {
         for (slot, code) in mem.zip(program.iter().skip(1)) {
             *slot = *code;
         }
+        self.regs.pc = *base_addr;
     }
 
     fn run(&mut self) {
@@ -384,8 +390,7 @@ fn main() {
 
     let program = load_program_from_file(args[1].as_str());
  
-    let mut vm = VM::new();
-    vm.load_program(program);
+    let mut vm = VM::new().with_program(program);
     vm.run();
 
     Terminal::shutdown();
