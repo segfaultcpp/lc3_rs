@@ -1,4 +1,4 @@
-use std::{*, env, fs, io::{*, prelude}};
+use std::{*, env, io::{*}};
 use libc;
 
 #[link(name = "cpp/terminal_setup", kind = "static")]
@@ -218,7 +218,7 @@ impl VM {
                     let base_reg = (instr >> 6) & 7;
                     let dr = (instr >> 9) & 7;
 
-                    self.regs[dr.into()] = self.read_from_mem(base_reg + offset);
+                    self.regs[dr.into()] = self.read_from_mem(self.regs[base_reg.into()] + offset);
                     self.regs.update_cond_reg(dr.into());
                 },
                 OP_STR => {
