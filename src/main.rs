@@ -4,8 +4,8 @@ use libc;
 #[link(name = "cpp/terminal_setup", kind = "static")]
 extern {
     fn check_key() -> u16;
-    fn setup_term() -> libc::c_void;
-    fn shutdown_term() -> libc::c_void;
+    fn setup_term() -> core::ffi::c_void;
+    fn shutdown_term() -> core::ffi::c_void;
 }
 
 struct Terminal;
