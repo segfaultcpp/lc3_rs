@@ -1,5 +1,4 @@
 use std::{*, env, io::{*}};
-use libc;
 
 #[link(name = "cpp/terminal_setup", kind = "static")]
 extern {
